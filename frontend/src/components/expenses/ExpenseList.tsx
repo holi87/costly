@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useExpensesStore } from "../../store/expenses";
 import { ExpenseCard } from "./ExpenseCard";
 import { Search, ChevronDown, ChevronUp } from "lucide-react";
+
+const PAGE_SIZES = [10, 25, 50] as const;
 
 export function ExpenseList() {
   const { expenses, categories, loading, fetchExpenses, fetchCategories } =
@@ -12,15 +14,16 @@ export function ExpenseList() {
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(25);
 
   useEffect(() => {
     if (categories.length === 0) fetchCategories();
   }, [categories.length, fetchCategories]);
 
-  useEffect(() => {
+  const loadExpenses = useCallback(() => {
     const params: Record<string, string> = {
       page: String(page),
-      limit: "50",
+      limit: String(pageSize),
       sort: "date",
       order: "desc",
     };
@@ -29,7 +32,15 @@ export function ExpenseList() {
     if (dateFrom) params.from = dateFrom;
     if (dateTo) params.to = dateTo;
     fetchExpenses(params);
-  }, [search, categoryFilter, dateFrom, dateTo, page, fetchExpenses]);
+  }, [search, categoryFilter, dateFrom, dateTo, page, pageSize, fetchExpenses]);
+
+  useEffect(() => {
+    loadExpenses();
+  }, [loadExpenses]);
+
+  const handleDeleted = () => {
+    loadExpenses();
+  };
 
   const pagination = expenses?.pagination;
 
@@ -49,6 +60,7 @@ export function ExpenseList() {
             setPage(1);
           }}
           placeholder="Szukaj wydatków..."
+          aria-label="Szukaj wydatków"
           className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
         />
       </div>
@@ -70,6 +82,7 @@ export function ExpenseList() {
               setCategoryFilter(e.target.value);
               setPage(1);
             }}
+            aria-label="Filtruj po kategorii"
             className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm outline-none"
           >
             <option value="">Wszystkie kategorie</option>
@@ -87,8 +100,8 @@ export function ExpenseList() {
                 setDateFrom(e.target.value);
                 setPage(1);
               }}
+              aria-label="Data od"
               className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm outline-none"
-              placeholder="Od"
             />
             <input
               type="date"
@@ -97,8 +110,8 @@ export function ExpenseList() {
                 setDateTo(e.target.value);
                 setPage(1);
               }}
+              aria-label="Data do"
               className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm outline-none"
-              placeholder="Do"
             />
           </div>
         </div>
@@ -113,30 +126,59 @@ export function ExpenseList() {
         <>
           <div className="space-y-2">
             {expenses.data.map((e) => (
-              <ExpenseCard key={e.id} expense={e} />
+              <ExpenseCard key={e.id} expense={e} onDeleted={handleDeleted} />
             ))}
           </div>
 
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex justify-center gap-2 pt-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm disabled:opacity-30 transition-colors"
-              >
-                Poprzednia
-              </button>
-              <span className="px-4 py-2 text-sm text-slate-500">
-                {page} / {pagination.totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= pagination.totalPages}
-                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm disabled:opacity-30 transition-colors"
-              >
-                Następna
-              </button>
+          {/* Pagination */}
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-400">Pokaż:</span>
+              {PAGE_SIZES.map((size) => (
+                <button
+                  key={size}
+                  onClick={() => {
+                    setPageSize(size);
+                    setPage(1);
+                  }}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    pageSize === size
+                      ? "bg-blue-600 text-white"
+                      : "text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
             </div>
+
+            {pagination && pagination.totalPages > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="px-2.5 py-1 rounded text-xs border border-slate-300 dark:border-slate-600 disabled:opacity-30 transition-colors"
+                >
+                  &larr;
+                </button>
+                <span className="text-xs text-slate-500 min-w-[4ch] text-center">
+                  {page}/{pagination.totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page >= pagination.totalPages}
+                  className="px-2.5 py-1 rounded text-xs border border-slate-300 dark:border-slate-600 disabled:opacity-30 transition-colors"
+                >
+                  &rarr;
+                </button>
+              </div>
+            )}
+          </div>
+
+          {pagination && (
+            <p className="text-xs text-slate-400 text-center">
+              {pagination.total} {pagination.total === 1 ? "wydatek" : pagination.total < 5 ? "wydatki" : "wydatków"}
+            </p>
           )}
         </>
       ) : (

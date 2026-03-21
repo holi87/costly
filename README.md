@@ -52,8 +52,8 @@ npm run dev              # http://localhost:5173
 
 ```bash
 # 1. Sklonuj
-git clone https://github.com/holi87/koszty-budowy.git
-cd koszty-budowy
+git clone https://github.com/holi87/costly.git
+cd costly
 
 # 2. Konfiguracja
 echo "DB_PASSWORD=twoje_silne_haslo" > .env

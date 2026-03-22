@@ -97,6 +97,23 @@ Aplikacja nie posiada własnego systemu logowania. Dostęp kontrolowany przez:
 1. **Cloudflare Tunnel** — tunel do Mac Mini M4
 2. **Cloudflare Access** — polityka email OTP, dozwolone: 2 adresy email
 
+## Changelog
+
+### v1.1.1 (2026-03-22)
+- 🐛 Fix: API URLs budowane relatywnie do bieżącej strony zamiast do roota — edycja wydatków nie działała na podstronach
+- 🐛 Fix: Zod `updateExpenseSchema` — `.partial()` na `.refine()` powodował błędy walidacji przy edycji
+- 🐛 Fix: Filtr kategorii akceptuje zarówno string jak i tablicę query params
+
+### v1.1.0 (2026-03-22)
+- ✨ Wydatki planowane — toggle "Zapłacone / Planowane" z podziałem sum na dashboardzie
+- ✨ Multiselect kategorii w filtrach (chipy z kolorami)
+- ✨ Ikona PWA i favicon (domek z "zł")
+- ✨ Inline edycja/usuwanie wydatków z listy
+- ✨ Selector ilości na stronę (10/25/50)
+
+### v1.0.0 (2026-03-21)
+- 🎉 Pierwszy release — pełna aplikacja PWA do śledzenia kosztów budowy
+
 ## Licencja
 
 Prywatne repozytorium. Wszelkie prawa zastrzeżone.

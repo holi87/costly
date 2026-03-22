@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Expense } from "../../api/client";
 import { formatCurrency, formatDate } from "../../lib/format";
-import { Pencil, Trash2, Clock } from "lucide-react";
+import { Pencil, Trash2, Clock, Heart } from "lucide-react";
 import api from "../../api/client";
 
 interface ExpenseCardProps {
@@ -26,6 +26,10 @@ export function ExpenseCard({ expense, onDeleted }: ExpenseCardProps) {
     }
   };
 
+  const firstCat = expense.categories[0];
+  const catNames = expense.categories.map((c) => c.name).join(", ");
+  const supportNum = expense.supportAmount ? parseFloat(expense.supportAmount) : 0;
+
   return (
     <div className="flex items-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 transition-colors">
       <button
@@ -36,31 +40,43 @@ export function ExpenseCard({ expense, onDeleted }: ExpenseCardProps) {
         <span
           className="w-10 h-10 rounded-full flex items-center justify-center text-base shrink-0"
           style={{
-            backgroundColor: (expense.category.color ?? "#6b7280") + "20",
+            backgroundColor: (firstCat?.color ?? "#6b7280") + "20",
           }}
         >
-          {expense.category.icon ?? "💰"}
+          {firstCat?.icon ?? "💰"}
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
             {expense.name}
           </p>
-          <p className="text-xs text-slate-400 dark:text-slate-500">
-            {expense.category.name} · {formatDate(expense.date)}
+          <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
+            {catNames} · {formatDate(expense.date)}
           </p>
         </div>
         <div className="text-right shrink-0">
-          <span className={`text-sm font-semibold whitespace-nowrap ${
-            expense.isPaid
-              ? "text-slate-800 dark:text-slate-100"
-              : "text-amber-600 dark:text-amber-400"
-          }`}>
+          <span
+            className={`text-sm font-semibold whitespace-nowrap ${
+              expense.isPaid
+                ? "text-slate-800 dark:text-slate-100"
+                : "text-amber-600 dark:text-amber-400"
+            }`}
+          >
             {formatCurrency(expense.amount)}
           </span>
           {!expense.isPaid && (
             <div className="flex items-center justify-end gap-0.5 mt-0.5">
               <Clock size={10} className="text-amber-500" />
-              <span className="text-[10px] text-amber-500 font-medium">planowane</span>
+              <span className="text-[10px] text-amber-500 font-medium">
+                planowane
+              </span>
+            </div>
+          )}
+          {supportNum > 0 && (
+            <div className="flex items-center justify-end gap-0.5 mt-0.5">
+              <Heart size={10} className="text-purple-500" />
+              <span className="text-[10px] text-purple-500 font-medium">
+                {formatCurrency(expense.supportAmount!)}
+              </span>
             </div>
           )}
         </div>

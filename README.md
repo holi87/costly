@@ -99,6 +99,13 @@ Aplikacja nie posiada własnego systemu logowania. Dostęp kontrolowany przez:
 
 ## Changelog
 
+### v1.2.0 (2026-03-22)
+- ✨ Wiele kategorii na wydatek (M:N) — multiselect chipów w formularzu
+- ✨ Pole "Wsparcie" — kwota wsparcia finansowego, sumowana osobno na dashboardzie
+- ✨ Dashboard: nowy widget "Wsparcie" (fioletowy) z sumą od teściowej
+- ♻️ Migracja danych: istniejące przypisania kategorii automatycznie przeniesione do nowej tabeli join
+- ✨ Export Excel: kolumny Wsparcie i Status (Zapłacone/Planowane)
+
 ### v1.1.1 (2026-03-22)
 - 🐛 Fix: API URLs budowane relatywnie do bieżącej strony zamiast do roota — edycja wydatków nie działała na podstronach
 - 🐛 Fix: Zod `updateExpenseSchema` — `.partial()` na `.refine()` powodował błędy walidacji przy edycji

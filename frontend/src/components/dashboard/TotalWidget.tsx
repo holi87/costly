@@ -1,5 +1,5 @@
 import { formatCurrency } from "../../lib/format";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock, Heart } from "lucide-react";
 
 interface TotalWidgetProps {
   total: string;
@@ -8,6 +8,7 @@ interface TotalWidgetProps {
   countPaid: number;
   totalPlanned: string;
   countPlanned: number;
+  totalSupport: string;
 }
 
 export function TotalWidget({
@@ -17,7 +18,10 @@ export function TotalWidget({
   countPaid,
   totalPlanned,
   countPlanned,
+  totalSupport,
 }: TotalWidgetProps) {
+  const supportNum = parseFloat(totalSupport);
+
   return (
     <div className="space-y-3">
       {/* Grand total */}
@@ -65,6 +69,21 @@ export function TotalWidget({
           </p>
         </div>
       </div>
+
+      {/* Support */}
+      {supportNum > 0 && (
+        <div className="rounded-xl p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Heart size={14} className="text-purple-600 dark:text-purple-400" />
+            <p className="text-xs font-medium text-purple-700 dark:text-purple-400">
+              Wsparcie
+            </p>
+          </div>
+          <p className="text-lg font-bold text-purple-800 dark:text-purple-200">
+            {formatCurrency(totalSupport)}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

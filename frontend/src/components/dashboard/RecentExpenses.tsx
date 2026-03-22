@@ -15,9 +15,9 @@ export function RecentExpenses({ expenses }: { expenses: Expense[] }) {
             <div className="flex items-center gap-3 min-w-0">
               <span
                 className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0"
-                style={{ backgroundColor: (e.category.color ?? "#6b7280") + "20" }}
+                style={{ backgroundColor: (e.categories[0]?.color ?? "#6b7280") + "20" }}
               >
-                {e.category.icon ?? "💰"}
+                {e.categories[0]?.icon ?? "💰"}
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">{e.name}</p>

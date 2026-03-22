@@ -32,11 +32,10 @@ export default async function importExportRoutes(app: FastifyInstance) {
         const dateRaw = row["Data"] ?? row["date"];
         const categoryRaw = String(
           row["Kategoria"] ?? row["category"] ?? "",
-        )
-          .trim()
-          .toLowerCase();
+        ).trim();
         const notes = row["Uwagi"] ?? row["notes"];
         const goal = row["Cel"] ?? row["goal"];
+        const supportRaw = row["Wsparcie"] ?? row["support"];
 
         if (!name || amountRaw === undefined) {
           skipped++;
@@ -51,11 +50,14 @@ export default async function importExportRoutes(app: FastifyInstance) {
           continue;
         }
 
+        const supportAmount = supportRaw
+          ? parseFloat(String(supportRaw).replace(",", "."))
+          : null;
+
         let date: Date;
         if (dateRaw instanceof Date) {
           date = dateRaw;
         } else if (typeof dateRaw === "number") {
-          // Excel serial date
           date = new Date((dateRaw - 25569) * 86400 * 1000);
         } else if (typeof dateRaw === "string" && dateRaw.match(/^\d{4}-\d{2}-\d{2}$/)) {
           date = new Date(dateRaw);
@@ -63,28 +65,43 @@ export default async function importExportRoutes(app: FastifyInstance) {
           date = new Date();
         }
 
-        let categoryId = catByName.get(categoryRaw);
-        if (!categoryId && categoryRaw) {
-          const cat = await prisma.category.create({
-            data: { name: row["Kategoria"] as string ?? categoryRaw },
-          });
-          catByName.set(categoryRaw, cat.id);
-          categoryId = cat.id;
-        }
-        if (!categoryId) {
+        // Support multiple categories separated by "|" or ";"
+        const catNames = categoryRaw
+          .split(/[|;]/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        if (catNames.length === 0) {
           skipped++;
           errors.push(`Row ${i + 2}: no category`);
           continue;
+        }
+
+        const categoryIds: number[] = [];
+        for (const cn of catNames) {
+          let catId = catByName.get(cn.toLowerCase());
+          if (!catId) {
+            const cat = await prisma.category.create({ data: { name: cn } });
+            catByName.set(cn.toLowerCase(), cat.id);
+            catId = cat.id;
+          }
+          categoryIds.push(catId);
         }
 
         await prisma.expense.create({
           data: {
             name,
             amount: new Prisma.Decimal(amount.toFixed(2)),
+            supportAmount:
+              supportAmount != null && !isNaN(supportAmount)
+                ? new Prisma.Decimal(supportAmount.toFixed(2))
+                : null,
             date,
-            categoryId,
             notes: notes ? String(notes) : undefined,
             goal: goal ? String(goal) : undefined,
+            categories: {
+              create: categoryIds.map((categoryId) => ({ categoryId })),
+            },
           },
         });
         imported++;
@@ -100,7 +117,9 @@ export default async function importExportRoutes(app: FastifyInstance) {
   app.get("/api/export/xlsx", async (_request, reply) => {
     const expenses = await prisma.expense.findMany({
       include: {
-        category: { select: { name: true, icon: true } },
+        categories: {
+          include: { category: { select: { name: true, icon: true } } },
+        },
       },
       orderBy: { date: "asc" },
     });
@@ -109,8 +128,10 @@ export default async function importExportRoutes(app: FastifyInstance) {
       Lp: i + 1,
       Nazwa: e.name,
       Kwota: parseFloat(e.amount.toString()),
+      Wsparcie: e.supportAmount ? parseFloat(e.supportAmount.toString()) : "",
       Data: e.date.toISOString().split("T")[0],
-      Kategoria: e.category.name,
+      Kategoria: e.categories.map((ec) => ec.category.name).join(" | "),
+      Status: e.isPaid ? "Zapłacone" : "Planowane",
       Cel: e.goal ?? "",
       Uwagi: e.notes ?? "",
     }));

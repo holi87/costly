@@ -5,7 +5,7 @@ import { DatePickerInput } from "../ui/DatePicker";
 import { useExpensesStore } from "../../store/expenses";
 import api from "../../api/client";
 import type { Expense } from "../../api/client";
-import { Loader2, Trash2, CheckCircle2, Clock } from "lucide-react";
+import { Loader2, Trash2, CheckCircle2, Clock, X, Heart } from "lucide-react";
 
 interface ExpenseFormProps {
   expense?: Expense;
@@ -26,9 +26,10 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
 
   const [name, setName] = useState(expense?.name ?? "");
   const [amount, setAmount] = useState(expense?.amount ?? "");
+  const [supportAmount, setSupportAmount] = useState(expense?.supportAmount ?? "");
   const [date, setDate] = useState(expense?.date ?? today());
-  const [categoryId, setCategoryId] = useState<string>(
-    expense?.categoryId?.toString() ?? "",
+  const [categoryIds, setCategoryIds] = useState<number[]>(
+    expense?.categories?.map((c) => c.id) ?? [],
   );
   const [goal, setGoal] = useState(expense?.goal ?? "");
   const [notes, setNotes] = useState(expense?.notes ?? "");
@@ -41,13 +42,21 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
     if (categories.length === 0) fetchCategories();
   }, [categories.length, fetchCategories]);
 
+  const toggleCategory = (id: number) => {
+    setCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+    );
+  };
+
   const validate = () => {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = "Nazwa jest wymagana";
     if (!amount || parseFloat(amount) <= 0) e.amount = "Kwota musi być większa od 0";
     if (!/^\d+(\.\d{1,2})?$/.test(amount)) e.amount = "Nieprawidłowy format kwoty";
     if (!date) e.date = "Data jest wymagana";
-    if (!categoryId) e.categoryId = "Kategoria jest wymagana";
+    if (categoryIds.length === 0) e.categoryIds = "Wybierz co najmniej jedną kategorię";
+    if (supportAmount && !/^\d+(\.\d{1,2})?$/.test(supportAmount))
+      e.supportAmount = "Nieprawidłowy format kwoty";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -61,8 +70,9 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
       const body = {
         name: name.trim(),
         amount: parseFloat(amount).toFixed(2),
+        supportAmount: supportAmount ? parseFloat(supportAmount).toFixed(2) : null,
         date,
-        categoryId: parseInt(categoryId, 10),
+        categoryIds,
         goal: goal.trim() || null,
         notes: notes.trim() || null,
         isPaid,
@@ -120,32 +130,59 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
         {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
       </div>
 
-      <CurrencyInput value={amount} onChange={setAmount} error={errors.amount} />
+      <CurrencyInput label="Kwota" value={amount} onChange={setAmount} error={errors.amount} />
+
+      {/* Support amount */}
+      <div>
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          <span className="flex items-center gap-1.5">
+            <Heart size={14} className="text-purple-500" />
+            Wsparcie (opcjonalne)
+          </span>
+        </label>
+        <CurrencyInput
+          value={supportAmount}
+          onChange={setSupportAmount}
+          error={errors.supportAmount}
+          placeholder="0,00"
+        />
+      </div>
 
       <DatePickerInput value={date} onChange={setDate} error={errors.date} />
 
+      {/* Category multiselect chips */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-          Kategoria
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          Kategorie
         </label>
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className={`w-full px-3 py-2.5 rounded-xl border ${
-            errors.categoryId
-              ? "border-red-400 dark:border-red-500"
-              : "border-slate-300 dark:border-slate-600"
-          } bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors`}
-        >
-          <option value="">Wybierz kategorię</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.icon ?? ""} {c.name}
-            </option>
-          ))}
-        </select>
-        {errors.categoryId && (
-          <p className="mt-1 text-xs text-red-500">{errors.categoryId}</p>
+        <div className="flex flex-wrap gap-1.5">
+          {categories.map((c) => {
+            const isSelected = categoryIds.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => toggleCategory(c.id)}
+                className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isSelected
+                    ? "text-white shadow-sm"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                }`}
+                style={
+                  isSelected
+                    ? { backgroundColor: c.color ?? "#3b82f6" }
+                    : undefined
+                }
+              >
+                {c.icon && <span>{c.icon}</span>}
+                {c.name}
+                {isSelected && <X size={12} />}
+              </button>
+            );
+          })}
+        </div>
+        {errors.categoryIds && (
+          <p className="mt-1 text-xs text-red-500">{errors.categoryIds}</p>
         )}
       </div>
 

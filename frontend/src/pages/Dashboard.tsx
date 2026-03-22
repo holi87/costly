@@ -30,6 +30,7 @@ export function Dashboard() {
               countPaid={stats.countPaid}
               totalPlanned={stats.totalPlanned}
               countPlanned={stats.countPlanned}
+              totalSupport={stats.totalSupport}
             />
             <MonthlyChart data={stats.byMonth} />
             <CategoryChart data={stats.byCategory} />

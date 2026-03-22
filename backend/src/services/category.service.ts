@@ -27,7 +27,7 @@ export async function updateCategory(id: number, data: UpdateCategoryInput) {
 }
 
 export async function deleteCategory(id: number) {
-  const count = await prisma.expense.count({ where: { categoryId: id } });
+  const count = await prisma.expenseCategory.count({ where: { categoryId: id } });
   if (count > 0) {
     throw Object.assign(
       new Error("Cannot delete category with expenses"),

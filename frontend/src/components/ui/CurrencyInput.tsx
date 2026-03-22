@@ -4,9 +4,17 @@ interface CurrencyInputProps {
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  label?: string;
+  placeholder?: string;
 }
 
-export function CurrencyInput({ value, onChange, error }: CurrencyInputProps) {
+export function CurrencyInput({
+  value,
+  onChange,
+  error,
+  label,
+  placeholder = "0.00",
+}: CurrencyInputProps) {
   const [focused, setFocused] = useState(false);
 
   const handleChange = (raw: string) => {
@@ -19,9 +27,11 @@ export function CurrencyInput({ value, onChange, error }: CurrencyInputProps) {
 
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-        Kwota
-      </label>
+      {label && (
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          {label}
+        </label>
+      )}
       <div
         className={`flex items-center rounded-xl border ${
           error
@@ -38,7 +48,7 @@ export function CurrencyInput({ value, onChange, error }: CurrencyInputProps) {
           onChange={(e) => handleChange(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="0.00"
+          placeholder={placeholder}
           className="flex-1 px-3 py-2.5 bg-transparent outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400"
         />
         <span className="pr-3 text-slate-400 dark:text-slate-500 text-sm font-medium">

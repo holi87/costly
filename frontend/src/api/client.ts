@@ -18,17 +18,17 @@ export interface Expense {
   id: number;
   name: string;
   amount: string;
+  supportAmount: string | null;
   date: string;
   notes: string | null;
   goal: string | null;
   isPaid: boolean;
-  categoryId: number;
-  category: {
+  categories: Array<{
     id: number;
     name: string;
     icon: string | null;
     color: string | null;
-  };
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,6 +50,7 @@ export interface Stats {
   countPaid: number;
   totalPlanned: string;
   countPlanned: number;
+  totalSupport: string;
   byCategory: Array<{
     categoryId: number;
     categoryName: string;

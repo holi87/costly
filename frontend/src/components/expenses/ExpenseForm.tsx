@@ -63,8 +63,8 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
         amount: parseFloat(amount).toFixed(2),
         date,
         categoryId: parseInt(categoryId, 10),
-        goal: goal.trim() || undefined,
-        notes: notes.trim() || undefined,
+        goal: goal.trim() || null,
+        notes: notes.trim() || null,
         isPaid,
       };
 

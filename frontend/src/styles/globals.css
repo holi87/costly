@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* Override Tailwind v4 default media-based dark mode with class-based strategy.
+   The source(none) prevents the built-in @media (prefers-color-scheme: dark) from applying. */
+@variant dark (&:where(.dark, .dark *));
 
 @theme {
   --color-primary: #2563eb;

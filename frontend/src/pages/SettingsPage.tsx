@@ -4,6 +4,38 @@ import { useUIStore } from "../store/ui";
 import { Sun, Moon, Monitor, Upload, Download, Loader2, CheckCircle } from "lucide-react";
 import api from "../api/client";
 
+const APP_VERSION = "1.2.0";
+
+const CHANGELOG = [
+  {
+    version: "1.2.0",
+    date: "2026-03-22",
+    changes: [
+      "✨ Wiele kategorii na wydatek (multiselect)",
+      "✨ Pole \"Wsparcie\" — kwota od teściowej, osobna suma",
+      "✨ Export Excel: kolumny Wsparcie i Status",
+    ],
+  },
+  {
+    version: "1.1.1",
+    date: "2026-03-22",
+    changes: [
+      "🐛 Fix edycji wydatków (błędne URL-e API)",
+      "🐛 Fix filtra kategorii (tablica vs string)",
+      "🐛 Fix schematu Zod dla update",
+    ],
+  },
+  {
+    version: "1.1.0",
+    date: "2026-03-22",
+    changes: [
+      "✨ Wydatki planowane (zapłacone/planowane)",
+      "✨ Multiselect kategorii w filtrach",
+      "✨ Ikona PWA i favicon (domek z \"zł\")",
+    ],
+  },
+];
+
 export function SettingsPage() {
   const { theme, setTheme } = useUIStore();
   const [importing, setImporting] = useState(false);
@@ -164,8 +196,37 @@ export function SettingsPage() {
           </h2>
           <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 text-sm text-slate-500 dark:text-slate-400">
             <p><span className="font-medium text-slate-700 dark:text-slate-300">Aplikacja:</span> Koszty Budowy</p>
-            <p><span className="font-medium text-slate-700 dark:text-slate-300">Wersja:</span> 1.0.0</p>
+            <p><span className="font-medium text-slate-700 dark:text-slate-300">Wersja:</span> {APP_VERSION}</p>
             <p><span className="font-medium text-slate-700 dark:text-slate-300">Użytkownicy:</span> Grzesiek & Julia</p>
+          </div>
+        </section>
+
+        {/* Changelog */}
+        <section>
+          <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-3">
+            Ostatnie zmiany
+          </h2>
+          <div className="space-y-3">
+            {CHANGELOG.map((entry, i) => (
+              <div
+                key={i}
+                className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                    v{entry.version}
+                  </span>
+                  <span className="text-[10px] text-slate-400">{entry.date}</span>
+                </div>
+                <ul className="space-y-1">
+                  {entry.changes.map((c, j) => (
+                    <li key={j} className="text-xs text-slate-500 dark:text-slate-400">
+                      {c}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </section>
       </div>

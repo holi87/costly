@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Expense } from "../../api/client";
 import { formatCurrency, formatDate } from "../../lib/format";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Clock } from "lucide-react";
 import api from "../../api/client";
 
 interface ExpenseCardProps {
@@ -49,9 +49,21 @@ export function ExpenseCard({ expense, onDeleted }: ExpenseCardProps) {
             {expense.category.name} · {formatDate(expense.date)}
           </p>
         </div>
-        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
-          {formatCurrency(expense.amount)}
-        </span>
+        <div className="text-right shrink-0">
+          <span className={`text-sm font-semibold whitespace-nowrap ${
+            expense.isPaid
+              ? "text-slate-800 dark:text-slate-100"
+              : "text-amber-600 dark:text-amber-400"
+          }`}>
+            {formatCurrency(expense.amount)}
+          </span>
+          {!expense.isPaid && (
+            <div className="flex items-center justify-end gap-0.5 mt-0.5">
+              <Clock size={10} className="text-amber-500" />
+              <span className="text-[10px] text-amber-500 font-medium">planowane</span>
+            </div>
+          )}
+        </div>
       </button>
 
       <div className="flex items-center gap-1 shrink-0">

@@ -1,15 +1,18 @@
 import { useEffect, useState, useCallback } from "react";
 import { useExpensesStore } from "../../store/expenses";
 import { ExpenseCard } from "./ExpenseCard";
-import { Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, X } from "lucide-react";
 
 const PAGE_SIZES = [10, 25, 50] as const;
+
+type PaidFilter = "all" | "paid" | "planned";
 
 export function ExpenseList() {
   const { expenses, categories, loading, fetchExpenses, fetchCategories } =
     useExpensesStore();
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
+  const [paidFilter, setPaidFilter] = useState<PaidFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -28,11 +31,23 @@ export function ExpenseList() {
       order: "desc",
     };
     if (search) params.search = search;
-    if (categoryFilter) params.category = categoryFilter;
+    if (selectedCategories.length > 0)
+      params.category = selectedCategories.join(",");
+    if (paidFilter === "paid") params.isPaid = "true";
+    if (paidFilter === "planned") params.isPaid = "false";
     if (dateFrom) params.from = dateFrom;
     if (dateTo) params.to = dateTo;
     fetchExpenses(params);
-  }, [search, categoryFilter, dateFrom, dateTo, page, pageSize, fetchExpenses]);
+  }, [
+    search,
+    selectedCategories,
+    paidFilter,
+    dateFrom,
+    dateTo,
+    page,
+    pageSize,
+    fetchExpenses,
+  ]);
 
   useEffect(() => {
     loadExpenses();
@@ -41,6 +56,19 @@ export function ExpenseList() {
   const handleDeleted = () => {
     loadExpenses();
   };
+
+  const toggleCategory = (id: number) => {
+    setSelectedCategories((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
+    setPage(1);
+  };
+
+  const activeFilterCount =
+    selectedCategories.length +
+    (paidFilter !== "all" ? 1 : 0) +
+    (dateFrom ? 1 : 0) +
+    (dateTo ? 1 : 0);
 
   const pagination = expenses?.pagination;
 
@@ -71,48 +99,119 @@ export function ExpenseList() {
         className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
       >
         Filtry
+        {activeFilterCount > 0 && (
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold leading-none">
+            {activeFilterCount}
+          </span>
+        )}
         {showFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
       </button>
 
       {showFilters && (
-        <div className="space-y-2 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-          <select
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
-              setPage(1);
-            }}
-            aria-label="Filtruj po kategorii"
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm outline-none"
-          >
-            <option value="">Wszystkie kategorie</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.icon ?? ""} {c.name}
-              </option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => {
-                setDateFrom(e.target.value);
-                setPage(1);
-              }}
-              aria-label="Data od"
-              className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm outline-none"
-            />
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => {
-                setDateTo(e.target.value);
-                setPage(1);
-              }}
-              aria-label="Data do"
-              className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm outline-none"
-            />
+        <div className="space-y-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          {/* Status filter */}
+          <div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+              Status
+            </p>
+            <div className="flex gap-1.5">
+              {(
+                [
+                  ["all", "Wszystkie"],
+                  ["paid", "Zapłacone"],
+                  ["planned", "Planowane"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => {
+                    setPaidFilter(value);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    paidFilter === value
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Category multiselect */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Kategorie
+              </p>
+              {selectedCategories.length > 0 && (
+                <button
+                  onClick={() => {
+                    setSelectedCategories([]);
+                    setPage(1);
+                  }}
+                  className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Wyczyść
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map((c) => {
+                const isSelected = selectedCategories.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => toggleCategory(c.id)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      isSelected
+                        ? "text-white shadow-sm"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    }`}
+                    style={
+                      isSelected
+                        ? { backgroundColor: c.color ?? "#3b82f6" }
+                        : undefined
+                    }
+                  >
+                    {c.icon && <span>{c.icon}</span>}
+                    {c.name}
+                    {isSelected && <X size={12} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Date range */}
+          <div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+              Zakres dat
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Data od"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm outline-none"
+              />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Data do"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm outline-none"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -177,7 +276,12 @@ export function ExpenseList() {
 
           {pagination && (
             <p className="text-xs text-slate-400 text-center">
-              {pagination.total} {pagination.total === 1 ? "wydatek" : pagination.total < 5 ? "wydatki" : "wydatków"}
+              {pagination.total}{" "}
+              {pagination.total === 1
+                ? "wydatek"
+                : pagination.total < 5
+                  ? "wydatki"
+                  : "wydatków"}
             </p>
           )}
         </>

@@ -10,20 +10,38 @@ export async function getStats(query: StatsQuery) {
     if (query.to) where.date.lte = new Date(query.to);
   }
 
-  const [aggregate, byCategory, byMonth] = await Promise.all([
-    prisma.expense.aggregate({
-      where,
-      _sum: { amount: true },
-      _count: true,
-    }),
-    prisma.expense.groupBy({
-      by: ["categoryId"],
-      where,
-      _sum: { amount: true },
-      _count: true,
-      orderBy: { _sum: { amount: "desc" } },
-    }),
-    prisma.$queryRaw<Array<{ month: string; total: Prisma.Decimal; count: bigint }>>`
+  const [aggregate, paidAggregate, plannedAggregate, byCategory, byMonth] =
+    await Promise.all([
+      // Grand total (all expenses)
+      prisma.expense.aggregate({
+        where,
+        _sum: { amount: true },
+        _count: true,
+      }),
+      // Paid only
+      prisma.expense.aggregate({
+        where: { ...where, isPaid: true },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      // Planned only
+      prisma.expense.aggregate({
+        where: { ...where, isPaid: false },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      // By category
+      prisma.expense.groupBy({
+        by: ["categoryId"],
+        where,
+        _sum: { amount: true },
+        _count: true,
+        orderBy: { _sum: { amount: "desc" } },
+      }),
+      // By month
+      prisma.$queryRaw<
+        Array<{ month: string; total: Prisma.Decimal; count: bigint }>
+      >`
       SELECT
         to_char(date, 'YYYY-MM') AS month,
         SUM(amount) AS total,
@@ -34,7 +52,7 @@ export async function getStats(query: StatsQuery) {
       GROUP BY month
       ORDER BY month
     `,
-  ]);
+    ]);
 
   const categories = await prisma.category.findMany({
     where: { id: { in: byCategory.map((c) => c.categoryId) } },
@@ -45,6 +63,10 @@ export async function getStats(query: StatsQuery) {
   return {
     total: aggregate._sum.amount?.toFixed(2) ?? "0.00",
     count: aggregate._count,
+    totalPaid: paidAggregate._sum.amount?.toFixed(2) ?? "0.00",
+    countPaid: paidAggregate._count,
+    totalPlanned: plannedAggregate._sum.amount?.toFixed(2) ?? "0.00",
+    countPlanned: plannedAggregate._count,
     byCategory: byCategory.map((c) => {
       const cat = catMap.get(c.categoryId);
       return {

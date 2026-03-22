@@ -10,12 +10,14 @@ export const createExpenseSchema = z.object({
   categoryId: z.number().int().positive(),
   goal: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
+  isPaid: z.boolean().default(true),
 });
 
 export const updateExpenseSchema = createExpenseSchema.partial();
 
 export const expenseQuerySchema = z.object({
-  category: z.coerce.number().int().positive().optional(),
+  category: z.string().optional(), // comma-separated IDs, e.g. "1,3,5"
+  isPaid: z.enum(["true", "false"]).optional(),
   from: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

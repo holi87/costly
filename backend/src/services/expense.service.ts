@@ -13,7 +13,14 @@ const includeCategory = {
 export async function getExpenses(query: ExpenseQuery) {
   const where: Prisma.ExpenseWhereInput = {};
 
-  if (query.category) where.categoryId = query.category;
+  if (query.category) {
+    const ids = query.category.split(",").map(Number).filter(Number.isFinite);
+    if (ids.length === 1) where.categoryId = ids[0];
+    else if (ids.length > 1) where.categoryId = { in: ids };
+  }
+  if (query.isPaid !== undefined) {
+    where.isPaid = query.isPaid === "true";
+  }
   if (query.from || query.to) {
     where.date = {};
     if (query.from) where.date.gte = new Date(query.from);
@@ -65,6 +72,7 @@ export async function createExpense(data: CreateExpenseInput) {
       categoryId: data.categoryId,
       goal: data.goal,
       notes: data.notes,
+      isPaid: data.isPaid ?? true,
     },
     include: includeCategory,
   });
@@ -81,6 +89,7 @@ export async function updateExpense(id: number, data: UpdateExpenseInput) {
     updateData.category = { connect: { id: data.categoryId } };
   if (data.goal !== undefined) updateData.goal = data.goal;
   if (data.notes !== undefined) updateData.notes = data.notes;
+  if (data.isPaid !== undefined) updateData.isPaid = data.isPaid;
 
   const expense = await prisma.expense.update({
     where: { id },
@@ -101,6 +110,7 @@ function formatExpense(expense: {
   date: Date;
   notes: string | null;
   goal: string | null;
+  isPaid: boolean;
   categoryId: number;
   category: { id: number; name: string; icon: string | null; color: string | null };
   createdAt: Date;

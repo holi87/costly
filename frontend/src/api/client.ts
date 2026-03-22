@@ -21,6 +21,7 @@ export interface Expense {
   date: string;
   notes: string | null;
   goal: string | null;
+  isPaid: boolean;
   categoryId: number;
   category: {
     id: number;
@@ -45,6 +46,10 @@ export interface ExpensesResponse {
 export interface Stats {
   total: string;
   count: number;
+  totalPaid: string;
+  countPaid: number;
+  totalPlanned: string;
+  countPlanned: number;
   byCategory: Array<{
     categoryId: number;
     categoryName: string;

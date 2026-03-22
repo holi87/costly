@@ -23,7 +23,14 @@ export function Dashboard() {
       <div className="px-4 py-4 space-y-4 max-w-lg mx-auto">
         {stats && stats.count > 0 ? (
           <>
-            <TotalWidget total={stats.total} count={stats.count} />
+            <TotalWidget
+              total={stats.total}
+              count={stats.count}
+              totalPaid={stats.totalPaid}
+              countPaid={stats.countPaid}
+              totalPlanned={stats.totalPlanned}
+              countPlanned={stats.countPlanned}
+            />
             <MonthlyChart data={stats.byMonth} />
             <CategoryChart data={stats.byCategory} />
             {expenses && <RecentExpenses expenses={expenses.data} />}

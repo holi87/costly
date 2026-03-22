@@ -23,6 +23,7 @@ model Expense {
   date       DateTime  @db.Date
   notes      String?
   goal       String?
+  isPaid     Boolean   @default(true)
   category   Category  @relation(fields: [categoryId], references: [id])
   categoryId Int
   createdAt  DateTime  @default(now())
@@ -30,4 +31,5 @@ model Expense {
 
   @@index([date])
   @@index([categoryId])
+  @@index([isPaid])
 }

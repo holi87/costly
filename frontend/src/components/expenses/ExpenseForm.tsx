@@ -5,7 +5,7 @@ import { DatePickerInput } from "../ui/DatePicker";
 import { useExpensesStore } from "../../store/expenses";
 import api from "../../api/client";
 import type { Expense } from "../../api/client";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, CheckCircle2, Clock } from "lucide-react";
 
 interface ExpenseFormProps {
   expense?: Expense;
@@ -32,6 +32,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
   );
   const [goal, setGoal] = useState(expense?.goal ?? "");
   const [notes, setNotes] = useState(expense?.notes ?? "");
+  const [isPaid, setIsPaid] = useState(expense?.isPaid ?? true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -64,6 +65,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
         categoryId: parseInt(categoryId, 10),
         goal: goal.trim() || undefined,
         notes: notes.trim() || undefined,
+        isPaid,
       };
 
       if (isEdit) {
@@ -171,6 +173,39 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
           rows={3}
           className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors resize-none"
         />
+      </div>
+
+      {/* Paid / Planned toggle */}
+      <div>
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          Status
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setIsPaid(true)}
+            className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+              isPaid
+                ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400"
+                : "border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400"
+            }`}
+          >
+            <CheckCircle2 size={16} />
+            Zapłacone
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsPaid(false)}
+            className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+              !isPaid
+                ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400"
+                : "border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400"
+            }`}
+          >
+            <Clock size={16} />
+            Planowane
+          </button>
+        </div>
       </div>
 
       <button

@@ -16,7 +16,7 @@ export const createExpenseSchema = z.object({
 export const updateExpenseSchema = createExpenseSchema.partial();
 
 export const expenseQuerySchema = z.object({
-  category: z.string().optional(), // comma-separated IDs, e.g. "1,3,5"
+  category: z.union([z.string(), z.array(z.string()).transform(a => a.join(","))]).optional(),
   isPaid: z.enum(["true", "false"]).optional(),
   from: z
     .string()

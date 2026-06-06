@@ -1,155 +1,218 @@
 import type { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
-import * as XLSX from "xlsx";
+import { z } from "zod";
 import prisma from "../db.js";
 
+const APP_NAME = "Koszty Budowy";
+const APP_VERSION = "1.3.0";
+
+// Accept the decimal strings we emit (e.amount.toFixed(2)), e.g. "1234.56".
+// Bounded to Decimal(12,2): max 10 integer digits, 2 fractional — so an
+// out-of-range amount is rejected by Zod up front instead of overflowing
+// mid-transaction (which would abort the whole import).
+const decimalString = z
+  .string()
+  .regex(/^\d{1,10}([.,]\d{1,2})?$/, "Invalid decimal amount");
+
+const importCategorySchema = z.object({
+  id: z.number().int(),
+  name: z.string().min(1),
+  icon: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
+  createdAt: z.string().optional(),
+});
+
+const importExpenseSchema = z.object({
+  id: z.number().int().optional(),
+  name: z.string().min(1),
+  amount: decimalString,
+  supportAmount: decimalString.nullable().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+  notes: z.string().nullable().optional(),
+  goal: z.string().nullable().optional(),
+  isPaid: z.boolean().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  categoryIds: z.array(z.number().int()),
+});
+
+const importSchema = z.object({
+  mode: z.enum(["replace", "merge"]),
+  payload: z.object({
+    version: z.literal(1, {
+      errorMap: () => ({ message: "Unsupported backup version (expected 1)" }),
+    }),
+    app: z.string().optional(),
+    appVersion: z.string().optional(),
+    exportedAt: z.string().optional(),
+    categories: z.array(importCategorySchema),
+    expenses: z.array(importExpenseSchema),
+  }),
+});
+
 export default async function importExportRoutes(app: FastifyInstance) {
-  app.post("/api/import/xlsx", async (request, reply) => {
-    const file = await request.file();
-    if (!file) {
-      return reply
-        .status(400)
-        .send({ error: "No file uploaded", statusCode: 400 });
+  app.get("/api/export/json", async (_request, reply) => {
+    const [categories, expenses] = await Promise.all([
+      prisma.category.findMany({ orderBy: { id: "asc" } }),
+      prisma.expense.findMany({
+        include: { categories: { select: { categoryId: true } } },
+        orderBy: { id: "asc" },
+      }),
+    ]);
+
+    const envelope = {
+      version: 1,
+      app: APP_NAME,
+      appVersion: APP_VERSION,
+      exportedAt: new Date().toISOString(),
+      categories: categories.map((c) => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon,
+        color: c.color,
+        createdAt: c.createdAt.toISOString(),
+      })),
+      expenses: expenses.map((e) => ({
+        id: e.id,
+        name: e.name,
+        // toFixed(2) keeps monetary values at 2 dp ("500.00", not "500")
+        // so amounts are string-stable across export round-trips.
+        amount: e.amount.toFixed(2),
+        supportAmount: e.supportAmount ? e.supportAmount.toFixed(2) : null,
+        date: e.date.toISOString().split("T")[0],
+        notes: e.notes,
+        goal: e.goal,
+        isPaid: e.isPaid,
+        createdAt: e.createdAt.toISOString(),
+        updatedAt: e.updatedAt.toISOString(),
+        categoryIds: e.categories.map((ec) => ec.categoryId),
+      })),
+    };
+
+    const filename = `koszty-budowy-backup-${new Date().toISOString().split("T")[0]}.json`;
+
+    return reply
+      .header("Content-Type", "application/json")
+      .header("Content-Disposition", `attachment; filename="${filename}"`)
+      .send(envelope);
+  });
+
+  app.post("/api/import/json", async (request, reply) => {
+    // Validate the whole envelope BEFORE any DB write.
+    const parsed = importSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: parsed.error.issues.map((i) => i.message).join("; "),
+        statusCode: 400,
+      });
     }
 
-    const buffer = await file.toBuffer();
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
-
-    const categories = await prisma.category.findMany();
-    const catByName = new Map(categories.map((c) => [c.name.toLowerCase(), c.id]));
+    const { mode, payload } = parsed.data;
 
     let imported = 0;
+    let categoriesImported = 0;
     let skipped = 0;
     const errors: string[] = [];
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      try {
-        const name = String(row["Nazwa"] ?? row["name"] ?? "").trim();
-        const amountRaw = row["Koszt"] ?? row["amount"];
-        const dateRaw = row["Data"] ?? row["date"];
-        const categoryRaw = String(
-          row["Kategoria"] ?? row["category"] ?? "",
-        ).trim();
-        const notes = row["Uwagi"] ?? row["notes"];
-        const goal = row["Cel"] ?? row["goal"];
-        const supportRaw = row["Wsparcie"] ?? row["support"];
-
-        if (!name || amountRaw === undefined) {
-          skipped++;
-          errors.push(`Row ${i + 2}: missing name or amount`);
-          continue;
+    await prisma.$transaction(
+      async (tx) => {
+        if (mode === "replace") {
+          await tx.expenseCategory.deleteMany();
+          await tx.expense.deleteMany();
+          await tx.category.deleteMany();
         }
 
-        const amount = parseFloat(String(amountRaw).replace(",", "."));
-        if (isNaN(amount) || amount <= 0) {
-          skipped++;
-          errors.push(`Row ${i + 2}: invalid amount`);
-          continue;
-        }
+        // Build a resolver: file category id -> db category id.
+        // Match existing categories by name (case-insensitive), reuse or create.
+        const existing = await tx.category.findMany();
+        const dbIdByName = new Map(
+          existing.map((c) => [c.name.toLowerCase(), c.id]),
+        );
+        const fileIdToDbId = new Map<number, number>();
 
-        const supportAmount = supportRaw
-          ? parseFloat(String(supportRaw).replace(",", "."))
-          : null;
-
-        let date: Date;
-        if (dateRaw instanceof Date) {
-          date = dateRaw;
-        } else if (typeof dateRaw === "number") {
-          date = new Date((dateRaw - 25569) * 86400 * 1000);
-        } else if (typeof dateRaw === "string" && dateRaw.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          date = new Date(dateRaw);
-        } else {
-          date = new Date();
-        }
-
-        // Support multiple categories separated by "|" or ";"
-        const catNames = categoryRaw
-          .split(/[|;]/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-
-        if (catNames.length === 0) {
-          skipped++;
-          errors.push(`Row ${i + 2}: no category`);
-          continue;
-        }
-
-        const categoryIds: number[] = [];
-        for (const cn of catNames) {
-          let catId = catByName.get(cn.toLowerCase());
-          if (!catId) {
-            const cat = await prisma.category.create({ data: { name: cn } });
-            catByName.set(cn.toLowerCase(), cat.id);
-            catId = cat.id;
+        for (const cat of payload.categories) {
+          const key = cat.name.toLowerCase();
+          let dbId = dbIdByName.get(key);
+          if (dbId === undefined) {
+            const created = await tx.category.create({
+              data: {
+                name: cat.name,
+                icon: cat.icon ?? null,
+                color: cat.color ?? null,
+              },
+            });
+            dbId = created.id;
+            dbIdByName.set(key, dbId);
+            categoriesImported++;
           }
-          categoryIds.push(catId);
+          fileIdToDbId.set(cat.id, dbId);
         }
 
-        await prisma.expense.create({
-          data: {
-            name,
-            amount: new Prisma.Decimal(amount.toFixed(2)),
-            supportAmount:
-              supportAmount != null && !isNaN(supportAmount)
-                ? new Prisma.Decimal(supportAmount.toFixed(2))
-                : null,
-            date,
-            notes: notes ? String(notes) : undefined,
-            goal: goal ? String(goal) : undefined,
-            categories: {
-              create: categoryIds.map((categoryId) => ({ categoryId })),
-            },
-          },
-        });
-        imported++;
-      } catch (err) {
-        skipped++;
-        errors.push(`Row ${i + 2}: ${(err as Error).message}`);
-      }
-    }
+        for (let i = 0; i < payload.expenses.length; i++) {
+          const exp = payload.expenses[i];
+          try {
+            // Resolve every category id BEFORE touching the DB so a bad id
+            // never poisons the transaction (Postgres aborts on stmt error).
+            const resolved: number[] = [];
+            const unknown: number[] = [];
+            for (const fid of exp.categoryIds) {
+              const dbId = fileIdToDbId.get(fid);
+              if (dbId === undefined) {
+                unknown.push(fid);
+              } else {
+                resolved.push(dbId);
+              }
+            }
 
-    return { imported, skipped, errors };
-  });
+            if (resolved.length === 0) {
+              skipped++;
+              errors.push(
+                `Expense "${exp.name}" (#${i + 1}): no resolvable category (unknown ids: ${unknown.join(", ") || "none"})`,
+              );
+              continue;
+            }
+            if (unknown.length > 0) {
+              errors.push(
+                `Expense "${exp.name}" (#${i + 1}): skipped unknown category ids: ${unknown.join(", ")}`,
+              );
+            }
 
-  app.get("/api/export/xlsx", async (_request, reply) => {
-    const expenses = await prisma.expense.findMany({
-      include: {
-        categories: {
-          include: { category: { select: { name: true, icon: true } } },
-        },
+            // De-duplicate resolved ids (file ids can collapse to one db id).
+            const uniqueResolved = [...new Set(resolved)];
+
+            await tx.expense.create({
+              data: {
+                name: exp.name,
+                amount: new Prisma.Decimal(exp.amount.replace(",", ".")),
+                supportAmount:
+                  exp.supportAmount != null
+                    ? new Prisma.Decimal(exp.supportAmount.replace(",", "."))
+                    : null,
+                // Parse the YYYY-MM-DD string as UTC midnight (matches the
+                // export side, which uses toISOString()) so dates never shift.
+                date: new Date(`${exp.date}T00:00:00Z`),
+                notes: exp.notes ?? null,
+                goal: exp.goal ?? null,
+                isPaid: exp.isPaid ?? true,
+                categories: {
+                  create: uniqueResolved.map((categoryId) => ({ categoryId })),
+                },
+              },
+            });
+            imported++;
+          } catch (err) {
+            // Should only ever catch JS-level throws; DB errors are
+            // pre-empted by the resolve-before-create checks above.
+            skipped++;
+            errors.push(
+              `Expense "${exp.name}" (#${i + 1}): ${(err as Error).message}`,
+            );
+          }
+        }
       },
-      orderBy: { date: "asc" },
-    });
+      { timeout: 30000 },
+    );
 
-    const data = expenses.map((e, i) => ({
-      Lp: i + 1,
-      Nazwa: e.name,
-      Kwota: parseFloat(e.amount.toString()),
-      Wsparcie: e.supportAmount ? parseFloat(e.supportAmount.toString()) : "",
-      Data: e.date.toISOString().split("T")[0],
-      Kategoria: e.categories.map((ec) => ec.category.name).join(" | "),
-      Status: e.isPaid ? "Zapłacone" : "Planowane",
-      Cel: e.goal ?? "",
-      Uwagi: e.notes ?? "",
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Wydatki");
-    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-
-    return reply
-      .header(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      )
-      .header(
-        "Content-Disposition",
-        'attachment; filename="koszty-budowy.xlsx"',
-      )
-      .send(buffer);
+    return { imported, categoriesImported, skipped, errors };
   });
 }

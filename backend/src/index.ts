@@ -1,6 +1,5 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import multipart from "@fastify/multipart";
 import { config } from "./config.js";
 import prisma from "./db.js";
 import categoriesRoutes from "./routes/categories.js";
@@ -12,7 +11,6 @@ const app = Fastify({
 });
 
 await app.register(cors, { origin: true });
-await app.register(multipart);
 
 await app.register(categoriesRoutes);
 await app.register(expensesRoutes);
